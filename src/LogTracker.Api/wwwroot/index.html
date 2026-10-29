@@ -1,255 +1,216 @@
 ﻿<!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LogTracker - Canlı İzleme Paneli</title>
-    <!-- Modern ve şık bir görünüm için Tailwind CSS yüklüyoruz -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="LogTracker live dashboard: request timings and exceptions of an ASP.NET Core API.">
+    <!--
+        Defense in depth: every API value is rendered with textContent, and this policy additionally
+        stops the browser from running any inline script or event handler that could slip into the page.
+    -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+    <title>LogTracker · Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310b981'/%3E%3Cpath d='M5 17h6l3-7 4 13 3-6h6' fill='none' stroke='%2304110b' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <!-- Chart.js 4.5.1 (MIT), vendored from the npm package so the dashboard also works offline and in Docker. See lib/chartjs/LICENSE.md. -->
+    <script src="lib/chartjs/chart.umd.min.js" defer></script>
+    <script type="module" src="js/main.js"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans">
+<body>
+    <a class="skip-link" href="#main" data-i18n="a11y.skipToContent">Skip to content</a>
 
-    <!-- Üst Bar -->
-    <header class="bg-gray-800 border-b border-gray-700 p-5 shadow-lg">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-emerald-400 flex items-center gap-2">
-                📊 LogTracker Dashboard
-            </h1>
-            <span class="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
-                Sistem Aktif
-            </span>
+    <header class="app-header">
+        <div class="container app-header__inner">
+            <div class="brand">
+                <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                    <rect width="32" height="32" rx="8" fill="#10b981"/>
+                    <path d="M5 17h6l3-7 4 13 3-6h6" fill="none" stroke="#04110b" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div class="brand__text">
+                    <h1 class="brand__name">LogTracker</h1>
+                    <p class="brand__tagline" data-i18n="app.tagline">API request &amp; error monitoring</p>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <div class="live-status">
+                    <span class="status-pill" id="live-status" data-state="loading" role="status">
+                        <span class="status-pill__dot" aria-hidden="true"></span>
+                        <span id="live-status-text">Connecting…</span>
+                    </span>
+                    <span class="last-updated">
+                        <span data-i18n="status.lastUpdated">Updated</span>
+                        <time id="last-updated">–</time>
+                    </span>
+                </div>
+                <div class="toolbar__actions">
+                    <button type="button" class="btn" id="pause-button">
+                        <svg class="icon icon--pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14M16 5v14"/></svg>
+                        <svg class="icon icon--play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5l12 7-12 7z"/></svg>
+                        <span id="pause-button-text">Pause</span>
+                    </button>
+                    <button type="button" class="btn" id="forget-key-button" hidden>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/></svg>
+                        <span data-i18n="actions.forgetKey">Forget API key</span>
+                    </button>
+                    <div class="segmented" role="group" data-i18n-attr="aria-label:language.label" aria-label="Language">
+                        <button type="button" data-language="tr" lang="tr" aria-pressed="false" title="Türkçe">TR</button>
+                        <button type="button" data-language="en" lang="en" aria-pressed="false" title="English">EN</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <main class="container mx-auto p-6 space-y-8">
+    <main id="main" class="container main" tabindex="-1">
+        <noscript><p class="noscript">LogTracker needs JavaScript to load its reports. / LogTracker raporları yüklemek için JavaScript gerektirir.</p></noscript>
 
-        <!-- 1. BÖLÜM: PIVOT HAFTALIK PERFORMANS TRENDİ -->
-        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
-            <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2">
-                📈 Haftalık Performans Trendi (SQL PIVOT)
-            </h2>
-            <div class="overflow-x-auto rounded-lg">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
-                            <th class="p-3">Endpoint Adresi</th>
-                            <th class="p-3">Pazartesi</th>
-                            <th class="p-3">Salı</th>
-                            <th class="p-3">Çarşamba</th>
-                            <th class="p-3">Perşembe</th>
-                            <th class="p-3">Cuma</th>
-                            <th class="p-3">Cumartesi</th>
-                            <th class="p-3">Pazar</th>
-                        </tr>
-                    </thead>
-                    <tbody id="weeklyTrendTable" class="text-sm divide-y divide-gray-700">
-                        <tr><td colspan="8" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
-                    </tbody>
-                </table>
+        <div class="page-head">
+            <div>
+                <h2 class="page-head__title" data-i18n="overview.title">Overview</h2>
+                <p class="page-head__sub" data-range-caption>Last 24 hours</p>
             </div>
-        </section>
-
-        <!-- 2. BÖLÜM: PIVOT SAATLİK HATA MATRİSİ -->
-        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
-            <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center gap-2">
-                🕒 Saatlik Hata Dağılım Matrisi (SQL PIVOT)
-            </h2>
-            <div class="overflow-x-auto rounded-lg">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
-                            <th class="p-3">Saat Dilimi</th>
-                            <th class="p-3">NullReference</th>
-                            <th class="p-3">SqlException</th>
-                            <th class="p-3">DivideByZero</th>
-                            <th class="p-3">Timeout</th>
-                        </tr>
-                    </thead>
-                    <tbody id="hourlyErrorTable" class="text-sm divide-y divide-gray-700">
-                        <tr><td colspan="5" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
-                    </tbody>
-                </table>
+            <div class="segmented" role="group" data-i18n-attr="aria-label:range.label" aria-label="Time range">
+                <button type="button" data-range="24" aria-pressed="true" data-i18n="range.24h">24h</button>
+                <button type="button" data-range="168" aria-pressed="false" data-i18n="range.7d">7d</button>
             </div>
-        </section>
-
-        <!-- 3. BÖLÜM: ENDPOINT ANALİZİ -->
-        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
-            <h2 class="text-xl font-semibold mb-4 text-gray-200">🔍 Genel Endpoint Analizi</h2>
-            <div class="overflow-x-auto rounded-lg">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
-                            <th class="p-3">Endpoint Adresi</th>
-                            <th class="p-3">Toplam İstek Sayısı</th>
-                            <th class="p-3">Ortalama Yanıt Süresi (ms)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="analysisTable" class="text-sm divide-y divide-gray-700">
-                        <tr><td colspan="3" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- İKİ KOLONLU ALT BÖLÜM -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-            <!-- 4. BÖLÜM: SON PERFORMANS METRİKLERİ -->
-            <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
-                <h2 class="text-xl font-semibold mb-4 text-emerald-400">⏱️ Son Performans Metrikleri (Ham Veri)</h2>
-                <div class="overflow-x-auto rounded-lg max-h-80 overflow-y-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-700/50 text-gray-300 text-sm">
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Endpoint</th>
-                                <th class="p-3">Süre (ms)</th>
-                                <th class="p-3">Zaman</th>
-                            </tr>
-                        </thead>
-                        <tbody id="performanceTable" class="text-sm divide-y divide-gray-700">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 5. BÖLÜM: SON HATA LOGLARI -->
-            <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
-                <h2 class="text-xl font-semibold mb-4 text-red-400">🚨 Son Sistem Hataları (Ham Veri)</h2>
-                <div class="overflow-x-auto rounded-lg max-h-80 overflow-y-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-700/50 text-gray-300 text-sm">
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Hata Mesajı</th>
-                                <th class="p-3">Kaynak</th>
-                                <th class="p-3">Zaman</th>
-                            </tr>
-                        </thead>
-                        <tbody id="errorTable" class="text-sm divide-y divide-gray-700">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
         </div>
 
+        <!-- 1. KPI cards (/summary) -->
+        <section class="kpi-section" id="summary" aria-labelledby="summary-title">
+            <h2 class="visually-hidden" id="summary-title" data-i18n="summary.title">Summary</h2>
+            <div class="panel__alert" role="status" hidden></div>
+            <div class="panel__content"></div>
+        </section>
+
+        <!-- 2. Errors per hour (/hourly-errors) -->
+        <section class="panel" id="hourly-errors" aria-labelledby="hourly-errors-title">
+            <header class="panel__head">
+                <div>
+                    <h2 class="panel__title" id="hourly-errors-title" data-i18n="hourly.title">Errors per hour</h2>
+                    <p class="panel__sub"><span data-range-caption>Last 24 hours</span> · <span data-i18n="hourly.subtitle">stacked by exception type, local time</span></p>
+                </div>
+            </header>
+            <div class="panel__alert" role="status" hidden></div>
+            <div class="panel__content"></div>
+        </section>
+
+        <!-- 3. Endpoints (/endpoints) -->
+        <section class="panel" id="endpoints" aria-labelledby="endpoints-title">
+            <header class="panel__head">
+                <div>
+                    <h2 class="panel__title" id="endpoints-title" data-i18n="endpoints.title">Endpoints</h2>
+                    <p class="panel__sub"><span data-range-caption>Last 24 hours</span> · <span data-i18n="endpoints.subtitle">sorted by request count</span></p>
+                </div>
+            </header>
+            <div class="panel__alert" role="status" hidden></div>
+            <div class="panel__content"></div>
+        </section>
+
+        <!-- 4. Weekly trend (/weekly-trend) -->
+        <section class="panel" id="weekly-trend" aria-labelledby="weekly-trend-title">
+            <header class="panel__head">
+                <div>
+                    <h2 class="panel__title" id="weekly-trend-title" data-i18n="weekly.title">Weekly latency trend</h2>
+                    <p class="panel__sub" data-i18n="weekly.subtitle">Average response time per weekday over the last 7 days (UTC)</p>
+                </div>
+                <div class="heat-legend" aria-hidden="true">
+                    <span data-i18n="weekly.legendFast">Faster</span>
+                    <span class="heat-legend__ramp"></span>
+                    <span data-i18n="weekly.legendSlow">Slower</span>
+                </div>
+            </header>
+            <div class="panel__alert" role="status" hidden></div>
+            <div class="panel__content"></div>
+        </section>
+
+        <div class="grid-2">
+            <!-- 5. Recent requests (/requests) -->
+            <section class="panel" id="recent-requests" aria-labelledby="recent-requests-title">
+                <header class="panel__head">
+                    <div>
+                        <h2 class="panel__title" id="recent-requests-title" data-i18n="requests.title">Recent requests</h2>
+                        <p class="panel__sub" data-i18n="requests.subtitle">Newest first</p>
+                    </div>
+                </header>
+                <div class="panel__alert" role="status" hidden></div>
+                <div class="panel__content"></div>
+                <nav class="pager" data-i18n-attr="aria-label:pager.label" aria-label="Pagination">
+                    <button type="button" class="btn btn--sm" data-pager="prev" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg>
+                        <span data-i18n="pager.previous">Previous</span>
+                    </button>
+                    <span class="pager__info"></span>
+                    <button type="button" class="btn btn--sm" data-pager="next" disabled>
+                        <span data-i18n="pager.next">Next</span>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
+                </nav>
+            </section>
+
+            <!-- 6. Recent errors (/errors, details from /errors/{id}) -->
+            <section class="panel" id="recent-errors" aria-labelledby="recent-errors-title">
+                <header class="panel__head">
+                    <div>
+                        <h2 class="panel__title" id="recent-errors-title" data-i18n="errors.title">Recent errors</h2>
+                        <p class="panel__sub" data-i18n="errors.subtitle">Newest first · select an error to see its stack trace</p>
+                    </div>
+                </header>
+                <div class="panel__alert" role="status" hidden></div>
+                <div class="panel__content"></div>
+                <nav class="pager" data-i18n-attr="aria-label:pager.label" aria-label="Pagination">
+                    <button type="button" class="btn btn--sm" data-pager="prev" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg>
+                        <span data-i18n="pager.previous">Previous</span>
+                    </button>
+                    <span class="pager__info"></span>
+                    <button type="button" class="btn btn--sm" data-pager="next" disabled>
+                        <span data-i18n="pager.next">Next</span>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
+                </nav>
+            </section>
+        </div>
     </main>
 
-    <!-- Verileri API'den çeken JavaScript Kodumuz -->
-    <script>
-        async function fetchData() {
-            // 1. Haftalık Performans Trendi (PIVOT) Çek
-            try {
-                const resWeekly = await fetch('/api/LogReport/weekly-performance-trend');
-                if (resWeekly.ok) {
-                    const weeklyData = await resWeekly.json();
-                    const weeklyTrendTable = document.getElementById('weeklyTrendTable');
-                    weeklyTrendTable.innerHTML = '';
-                    weeklyData.forEach(item => {
-                        weeklyTrendTable.innerHTML += `
-                                <tr class="hover:bg-gray-700/30">
-                                    <td class="p-3 font-mono text-blue-400">${item.endpointPath}</td>
-                                    <td class="p-3 ${item.monday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.monday} ms</td>
-                                    <td class="p-3 ${item.tuesday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.tuesday} ms</td>
-                                    <td class="p-3 ${item.wednesday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.wednesday} ms</td>
-                                    <td class="p-3 ${item.thursday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.thursday} ms</td>
-                                    <td class="p-3 ${item.friday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.friday} ms</td>
-                                    <td class="p-3 ${item.saturday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.saturday} ms</td>
-                                    <td class="p-3 ${item.sunday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.sunday} ms</td>
-                                </tr>
-                            `;
-                    });
-                }
-            } catch (err) { console.error("Haftalık trend yüklenemedi:", err); }
+    <footer class="container app-footer">
+        <p>
+            <span data-i18n="footer.text">LogTracker · open-source request and error monitoring for ASP.NET Core</span>
+            · <a href="https://github.com/ibrahimceceli/LogTrackerAPI" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </p>
+    </footer>
 
-            // 2. Saatlik Hata Matrisi (PIVOT) Çek
-            try {
-                const resHourly = await fetch('/api/LogReport/hourly-error-matrix');
-                if (resHourly.ok) {
-                    const hourlyData = await resHourly.json();
-                    const hourlyErrorTable = document.getElementById('hourlyErrorTable');
-                    hourlyErrorTable.innerHTML = '';
-                    hourlyData.forEach(item => {
-                        hourlyErrorTable.innerHTML += `
-                                <tr class="hover:bg-gray-700/30">
-                                    <td class="p-3 font-semibold text-blue-300">${item.hourOfDate}:00 - ${(item.hourOfDate + 1) % 24}:00</td>
-                                    <td class="p-3 ${item.nullReference > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.nullReference}</td>
-                                    <td class="p-3 ${item.sqlException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.sqlException}</td>
-                                    <td class="p-3 ${item.divideByZeroException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.divideByZeroException}</td>
-                                    <td class="p-3 ${item.timeoutException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.timeoutException}</td>
-                                </tr>
-                            `;
-                    });
-                }
-            } catch (err) { console.error("Saatlik hata matrisi yüklenemedi:", err); }
+    <!-- Error detail dialog: filled by js/error-dialog.js -->
+    <dialog class="dialog dialog--wide" id="error-dialog" aria-labelledby="error-dialog-title">
+        <div class="dialog__head">
+            <h2 class="dialog__title" id="error-dialog-title" data-i18n="details.title">Error details</h2>
+            <button type="button" class="icon-button" data-close data-i18n-attr="aria-label:actions.close" aria-label="Close">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <div class="dialog__body" id="error-dialog-body"></div>
+    </dialog>
 
-            // 3. Genel Endpoint Analizini Çek
-            try {
-                const resAnalysis = await fetch('/api/LogReport/analysis');
-                if (resAnalysis.ok) {
-                    const analysisData = await resAnalysis.json();
-                    const analysisTable = document.getElementById('analysisTable');
-                    analysisTable.innerHTML = '';
-                    analysisData.forEach(item => {
-                        analysisTable.innerHTML += `
-                                <tr class="hover:bg-gray-700/30">
-                                    <td class="p-3 font-mono text-blue-400">${item.endpoint}</td>
-                                    <td class="p-3 font-semibold">${item.totalRequests}</td>
-                                    <td class="p-3 text-emerald-400">${item.averageResponseTime} ms</td>
-                                </tr>
-                            `;
-                    });
-                }
-            } catch (err) { console.error("Genel analiz yüklenemedi:", err); }
-
-            // 4. Son Performans Loglarını Çek
-            try {
-                const resPerf = await fetch('/api/LogReport/performance');
-                if (resPerf.ok) {
-                    const perfData = await resPerf.json();
-                    const performanceTable = document.getElementById('performanceTable');
-                    performanceTable.innerHTML = '';
-                    perfData.slice(0, 10).forEach(item => {
-                        performanceTable.innerHTML += `
-                                <tr class="hover:bg-gray-700/30">
-                                    <td class="p-3 text-gray-500">${item.metricID}</td>
-                                    <td class="p-3 font-mono text-gray-300 text-xs">${item.endpointPath}</td>
-                                    <td class="p-3 font-semibold text-emerald-400 text-xs">${item.responseTimeMS} ms</td>
-                                    <td class="p-3 text-gray-400 text-xs">${new Date(item.logDate).toLocaleTimeString()}</td>
-                                </tr>
-                            `;
-                    });
-                }
-            } catch (err) { console.error("Performans logları yüklenemedi:", err); }
-
-            // 5. Son Hata Loglarını Çek
-            try {
-                const resErrors = await fetch('/api/LogReport/errors');
-                if (resErrors.ok) {
-                    const errorData = await resErrors.json();
-                    const errorTable = document.getElementById('errorTable');
-                    errorTable.innerHTML = '';
-                    errorData.slice(0, 10).forEach(item => {
-                        errorTable.innerHTML += `
-                                <tr class="hover:bg-gray-700/30">
-                                    <td class="p-3 text-red-500 font-semibold text-xs">${item.errorID}</td>
-                                    <td class="p-3 text-red-300 font-semibold text-xs">${item.errorMessage}</td>
-                                    <td class="p-3 text-gray-400 text-xs font-mono">${item.errorSource}</td>
-                                    <td class="p-3 text-gray-400 text-xs">${new Date(item.logDate).toLocaleTimeString()}</td>
-                                </tr>
-                            `;
-                    });
-                }
-            } catch (err) { console.error("Hata logları yüklenemedi:", err); }
-        }
-
-        // Sayfa açıldığında verileri çek
-        fetchData();
-        // Her 5 saniyede bir verileri otomatik yenile (Canlı Dashboard Hissi!)
-        setInterval(fetchData, 5000);
-    </script>
+    <!-- API key dialog: shown when a report endpoint answers 401 -->
+    <dialog class="dialog" id="api-key-dialog" aria-labelledby="api-key-title" aria-describedby="api-key-description">
+        <!-- method="dialog": even if the script failed, submitting only closes the dialog and never puts the key in a URL -->
+        <form class="dialog__form" id="api-key-form" method="dialog" novalidate>
+            <div class="dialog__head">
+                <h2 class="dialog__title" id="api-key-title" data-i18n="apiKey.title">API key required</h2>
+            </div>
+            <div class="dialog__body">
+                <p class="dialog__text" id="api-key-description" data-i18n="apiKey.description">This LogTracker instance protects its reports with an API key. The key is stored only in this browser.</p>
+                <p class="form-error" id="api-key-error" hidden data-i18n="apiKey.rejected">The API key was rejected. Check it and try again.</p>
+                <label class="field-label" for="api-key-input" data-i18n="apiKey.label">API key</label>
+                <input class="field-input" id="api-key-input" name="apiKey" type="password" autocomplete="off" spellcheck="false" required>
+            </div>
+            <div class="dialog__actions">
+                <button type="button" class="btn" data-cancel data-i18n="actions.cancel">Cancel</button>
+                <button type="submit" class="btn btn--primary" data-i18n="apiKey.submit">Save and retry</button>
+            </div>
+        </form>
+    </dialog>
 </body>
 </html>
