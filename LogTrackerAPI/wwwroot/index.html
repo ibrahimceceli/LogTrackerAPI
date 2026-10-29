@@ -1,0 +1,255 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogTracker - Canlı İzleme Paneli</title>
+    <!-- Modern ve şık bir görünüm için Tailwind CSS yüklüyoruz -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+
+    <!-- Üst Bar -->
+    <header class="bg-gray-800 border-b border-gray-700 p-5 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-emerald-400 flex items-center gap-2">
+                📊 LogTracker Dashboard
+            </h1>
+            <span class="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
+                Sistem Aktif
+            </span>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-6 space-y-8">
+
+        <!-- 1. BÖLÜM: PIVOT HAFTALIK PERFORMANS TRENDİ -->
+        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2">
+                📈 Haftalık Performans Trendi (SQL PIVOT)
+            </h2>
+            <div class="overflow-x-auto rounded-lg">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
+                            <th class="p-3">Endpoint Adresi</th>
+                            <th class="p-3">Pazartesi</th>
+                            <th class="p-3">Salı</th>
+                            <th class="p-3">Çarşamba</th>
+                            <th class="p-3">Perşembe</th>
+                            <th class="p-3">Cuma</th>
+                            <th class="p-3">Cumartesi</th>
+                            <th class="p-3">Pazar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyTrendTable" class="text-sm divide-y divide-gray-700">
+                        <tr><td colspan="8" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 2. BÖLÜM: PIVOT SAATLİK HATA MATRİSİ -->
+        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center gap-2">
+                🕒 Saatlik Hata Dağılım Matrisi (SQL PIVOT)
+            </h2>
+            <div class="overflow-x-auto rounded-lg">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
+                            <th class="p-3">Saat Dilimi</th>
+                            <th class="p-3">NullReference</th>
+                            <th class="p-3">SqlException</th>
+                            <th class="p-3">DivideByZero</th>
+                            <th class="p-3">Timeout</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hourlyErrorTable" class="text-sm divide-y divide-gray-700">
+                        <tr><td colspan="5" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 3. BÖLÜM: ENDPOINT ANALİZİ -->
+        <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4 text-gray-200">🔍 Genel Endpoint Analizi</h2>
+            <div class="overflow-x-auto rounded-lg">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700/50 text-gray-300 text-sm">
+                            <th class="p-3">Endpoint Adresi</th>
+                            <th class="p-3">Toplam İstek Sayısı</th>
+                            <th class="p-3">Ortalama Yanıt Süresi (ms)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analysisTable" class="text-sm divide-y divide-gray-700">
+                        <tr><td colspan="3" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- İKİ KOLONLU ALT BÖLÜM -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- 4. BÖLÜM: SON PERFORMANS METRİKLERİ -->
+            <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-emerald-400">⏱️ Son Performans Metrikleri (Ham Veri)</h2>
+                <div class="overflow-x-auto rounded-lg max-h-80 overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-700/50 text-gray-300 text-sm">
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Endpoint</th>
+                                <th class="p-3">Süre (ms)</th>
+                                <th class="p-3">Zaman</th>
+                            </tr>
+                        </thead>
+                        <tbody id="performanceTable" class="text-sm divide-y divide-gray-700">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 5. BÖLÜM: SON HATA LOGLARI -->
+            <section class="bg-gray-800 rounded-xl p-6 shadow-md border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-red-400">🚨 Son Sistem Hataları (Ham Veri)</h2>
+                <div class="overflow-x-auto rounded-lg max-h-80 overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-700/50 text-gray-300 text-sm">
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Hata Mesajı</th>
+                                <th class="p-3">Kaynak</th>
+                                <th class="p-3">Zaman</th>
+                            </tr>
+                        </thead>
+                        <tbody id="errorTable" class="text-sm divide-y divide-gray-700">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <!-- Verileri API'den çeken JavaScript Kodumuz -->
+    <script>
+        async function fetchData() {
+            // 1. Haftalık Performans Trendi (PIVOT) Çek
+            try {
+                const resWeekly = await fetch('/api/LogReport/weekly-performance-trend');
+                if (resWeekly.ok) {
+                    const weeklyData = await resWeekly.json();
+                    const weeklyTrendTable = document.getElementById('weeklyTrendTable');
+                    weeklyTrendTable.innerHTML = '';
+                    weeklyData.forEach(item => {
+                        weeklyTrendTable.innerHTML += `
+                                <tr class="hover:bg-gray-700/30">
+                                    <td class="p-3 font-mono text-blue-400">${item.endpointPath}</td>
+                                    <td class="p-3 ${item.monday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.monday} ms</td>
+                                    <td class="p-3 ${item.tuesday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.tuesday} ms</td>
+                                    <td class="p-3 ${item.wednesday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.wednesday} ms</td>
+                                    <td class="p-3 ${item.thursday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.thursday} ms</td>
+                                    <td class="p-3 ${item.friday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.friday} ms</td>
+                                    <td class="p-3 ${item.saturday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.saturday} ms</td>
+                                    <td class="p-3 ${item.sunday > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-500'}">${item.sunday} ms</td>
+                                </tr>
+                            `;
+                    });
+                }
+            } catch (err) { console.error("Haftalık trend yüklenemedi:", err); }
+
+            // 2. Saatlik Hata Matrisi (PIVOT) Çek
+            try {
+                const resHourly = await fetch('/api/LogReport/hourly-error-matrix');
+                if (resHourly.ok) {
+                    const hourlyData = await resHourly.json();
+                    const hourlyErrorTable = document.getElementById('hourlyErrorTable');
+                    hourlyErrorTable.innerHTML = '';
+                    hourlyData.forEach(item => {
+                        hourlyErrorTable.innerHTML += `
+                                <tr class="hover:bg-gray-700/30">
+                                    <td class="p-3 font-semibold text-blue-300">${item.hourOfDate}:00 - ${(item.hourOfDate + 1) % 24}:00</td>
+                                    <td class="p-3 ${item.nullReference > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.nullReference}</td>
+                                    <td class="p-3 ${item.sqlException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.sqlException}</td>
+                                    <td class="p-3 ${item.divideByZeroException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.divideByZeroException}</td>
+                                    <td class="p-3 ${item.timeoutException > 0 ? 'text-red-400 font-bold' : 'text-gray-500'}">${item.timeoutException}</td>
+                                </tr>
+                            `;
+                    });
+                }
+            } catch (err) { console.error("Saatlik hata matrisi yüklenemedi:", err); }
+
+            // 3. Genel Endpoint Analizini Çek
+            try {
+                const resAnalysis = await fetch('/api/LogReport/analysis');
+                if (resAnalysis.ok) {
+                    const analysisData = await resAnalysis.json();
+                    const analysisTable = document.getElementById('analysisTable');
+                    analysisTable.innerHTML = '';
+                    analysisData.forEach(item => {
+                        analysisTable.innerHTML += `
+                                <tr class="hover:bg-gray-700/30">
+                                    <td class="p-3 font-mono text-blue-400">${item.endpoint}</td>
+                                    <td class="p-3 font-semibold">${item.totalRequests}</td>
+                                    <td class="p-3 text-emerald-400">${item.averageResponseTime} ms</td>
+                                </tr>
+                            `;
+                    });
+                }
+            } catch (err) { console.error("Genel analiz yüklenemedi:", err); }
+
+            // 4. Son Performans Loglarını Çek
+            try {
+                const resPerf = await fetch('/api/LogReport/performance');
+                if (resPerf.ok) {
+                    const perfData = await resPerf.json();
+                    const performanceTable = document.getElementById('performanceTable');
+                    performanceTable.innerHTML = '';
+                    perfData.slice(0, 10).forEach(item => {
+                        performanceTable.innerHTML += `
+                                <tr class="hover:bg-gray-700/30">
+                                    <td class="p-3 text-gray-500">${item.metricID}</td>
+                                    <td class="p-3 font-mono text-gray-300 text-xs">${item.endpointPath}</td>
+                                    <td class="p-3 font-semibold text-emerald-400 text-xs">${item.responseTimeMS} ms</td>
+                                    <td class="p-3 text-gray-400 text-xs">${new Date(item.logDate).toLocaleTimeString()}</td>
+                                </tr>
+                            `;
+                    });
+                }
+            } catch (err) { console.error("Performans logları yüklenemedi:", err); }
+
+            // 5. Son Hata Loglarını Çek
+            try {
+                const resErrors = await fetch('/api/LogReport/errors');
+                if (resErrors.ok) {
+                    const errorData = await resErrors.json();
+                    const errorTable = document.getElementById('errorTable');
+                    errorTable.innerHTML = '';
+                    errorData.slice(0, 10).forEach(item => {
+                        errorTable.innerHTML += `
+                                <tr class="hover:bg-gray-700/30">
+                                    <td class="p-3 text-red-500 font-semibold text-xs">${item.errorID}</td>
+                                    <td class="p-3 text-red-300 font-semibold text-xs">${item.errorMessage}</td>
+                                    <td class="p-3 text-gray-400 text-xs font-mono">${item.errorSource}</td>
+                                    <td class="p-3 text-gray-400 text-xs">${new Date(item.logDate).toLocaleTimeString()}</td>
+                                </tr>
+                            `;
+                    });
+                }
+            } catch (err) { console.error("Hata logları yüklenemedi:", err); }
+        }
+
+        // Sayfa açıldığında verileri çek
+        fetchData();
+        // Her 5 saniyede bir verileri otomatik yenile (Canlı Dashboard Hissi!)
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>
