@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Local environment files (Docker Compose secrets etc.)
 .env
+
+# Personal Docker Compose overrides (docker compose loads this file automatically)
+docker-compose.override.yml
