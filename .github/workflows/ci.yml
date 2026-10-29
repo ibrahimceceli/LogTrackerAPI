@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels the run that is still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (warnings are errors)
+        run: dotnet build --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+
+      # Database tests skip themselves because LOGTRACKER_TEST_CONNECTION is not set here.
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+  database-tests:
+    name: Database tests (SQL Server)
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          # Throwaway password for a container that only lives while this job runs.
+          MSSQL_SA_PASSWORD: LogTracker_Ci_2026
+        ports:
+          - 1433:1433
+        # The job steps start only after this check reports the server as healthy.
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q 'SELECT 1' -o /dev/null"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      # The tests create and drop their own databases on this server.
+      - name: Run database tests
+        env:
+          LOGTRACKER_TEST_CONNECTION: Server=localhost,1433;User Id=sa;Password=LogTracker_Ci_2026;TrustServerCertificate=True
+        run: dotnet test --configuration Release --filter "Category=Database"
+
+  docker:
+    name: Docker images and stack smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The example settings are complete enough to run the stack, which also proves
+      # that .env.example documents every variable docker-compose.yml needs.
+      - name: Create .env from .env.example
+        run: cp .env.example .env
+
+      - name: Validate docker-compose.yml
+        run: docker compose --profile demo config --quiet
+
+      - name: Build the API and simulator images
+        run: docker compose --profile demo build
+
+      - name: Start SQL Server, run the database scripts and start the API
+        run: docker compose up --detach --wait --wait-timeout 300
+
+      - name: Smoke test
+        run: |
+          curl --fail --silent --show-error http://localhost:8080/health
+          echo
+          curl --fail --silent --show-error --output /dev/null http://localhost:8080/api/products
+          # Exits with 1 if the API never answers.
+          docker compose --profile demo run --rm simulator --duration 20 --summary-interval 0
+
+      - name: Show container logs
+        if: failure()
+        run: docker compose --profile demo logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose --profile demo down --volumes
