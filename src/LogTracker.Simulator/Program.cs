@@ -1,98 +1,51 @@
-﻿using System;
-using System.Net.Http;
-using System.Threading.Tasks;
+﻿using System.Runtime.InteropServices;
+using LogTracker.Simulator;
 
-namespace LogTracker.Simulator
+if (SimulatorOptionsParser.IsHelpRequested(args))
 {
-    class Program
-    {
-        // LogTracker API adresimiz (Kendi localhost portuna göre güncelle!)
-        private static readonly string ApiBaseUrl = "https://localhost:7292";
-        private static readonly HttpClient Client = new HttpClient();
-        private static readonly Random Randomizer = new Random();
+    Console.Write(SimulatorOptionsParser.HelpText());
+    return 0;
+}
 
-        static async Task Main(string[] args)
-        {
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("==================================================");
-            Console.WriteLine("🚀 LogTracker Yük Testi & İstek Simülatörü Başladı");
-            Console.WriteLine("==================================================");
-            Console.ResetColor();
-            Console.WriteLine("API'ye sürekli asenkron trafik ve hatalar gönderiliyor...\n");
+SimulatorOptions options;
+try
+{
+    options = SimulatorOptionsParser.Parse(args, Environment.GetEnvironmentVariable);
+}
+catch (OptionException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+    Console.Error.WriteLine("Run with --help to see all options.");
+    return 2;
+}
 
-            // Simülasyonu durdurmak için konsolda bir tuşa basılmasını bekleyen asenkron döngü
-            bool keepRunning = true;
-            _ = Task.Run(() =>
-            {
-                Console.ReadKey();
-                keepRunning = false;
-            });
+// Ctrl+C sends SIGINT and "docker stop" sends SIGTERM. Instead of letting the process die,
+// both cancel this token: in-flight requests and pauses end at once, then the final summary prints.
+using var stopping = new CancellationTokenSource();
+using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, StopGracefully);
+using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, StopGracefully);
+if (options.Duration is TimeSpan duration)
+{
+    stopping.CancelAfter(duration);
+}
 
-            // Endpoint listemiz (Dashboard'u besleyecek gerçekçi adresler)
-            string[] endpoints = {
-                "/api/products",
-                "/api/LogReport/analysis",
-                "/api/LogReport/performance",
-                "/index.html"
-            };
+// https://no-color.org: any non-empty NO_COLOR value turns colors off.
+var reporter = new ConsoleReporter(useColors: string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")));
+var stats = new RequestStats();
+using HttpClient client = ApiClientFactory.Create(options.BaseUrl);
+var runner = new TrafficRunner(client, new TrafficMix(options.ErrorPercent), stats, reporter, options);
 
-            // Hata simülasyonu yapacak endpointler
-            string[] errorEndpoints = {
-                "/api/TestLog/simulate-error",
-                "/api/TestLog/test-error"
-            };
+reporter.PrintStart(options);
+await runner.RunAsync(stopping.Token);
 
-            while (keepRunning)
-            {
-                // Aynı anda 5 farklı asenkron istek fırlatalım (Eşzamanlılık / Concurrency)
-                Task[] tasks = new Task[5];
+StatsSnapshot finalStats = stats.Snapshot();
+reporter.PrintSummary(finalStats, isFinal: true);
 
-                for (int i = 0; i < tasks.Length; i++)
-                {
-                    int chance = Randomizer.Next(100);
+// Exit code 1 tells scripts (and the CI smoke test) that the API never answered.
+return finalStats.Responses == 0 ? 1 : 0;
 
-                    if (chance < 75) // %75 olasılıkla normal performans isteği at
-                    {
-                        string targetPath = endpoints[Randomizer.Next(endpoints.Length)];
-                        tasks[i] = SendRequestAsync(targetPath, ConsoleColor.Green);
-                    }
-                    else // %25 olasılıkla hata üreten endpointleri tetikle
-                    {
-                        string targetPath = errorEndpoints[Randomizer.Next(errorEndpoints.Length)];
-                        tasks[i] = SendRequestAsync(targetPath, ConsoleColor.Red);
-                    }
-                }
-
-                // İsteklerin tamamlanmasını bekle
-                await Task.WhenAll(tasks);
-
-                // Sunucuyu çökertmemek ve izlenebilir kılmak için her döngü arası kısa bir mola
-                await Task.Delay(Randomizer.Next(1000, 3000));
-            }
-
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n[!] Simülasyon sonlandırıldı.");
-            Console.ResetColor();
-        }
-
-        private static async Task SendRequestAsync(string path, ConsoleColor logColor)
-        {
-            try
-            {
-                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                HttpResponseMessage response = await Client.GetAsync(ApiBaseUrl + path);
-                stopwatch.Stop();
-
-                Console.ForegroundColor = logColor;
-                Console.WriteLine($"[{DateTime.Now.ToLongTimeString()}] İstek: {path} | Durum: {response.StatusCode} | Süre: {stopwatch.ElapsedMilliseconds}ms");
-                Console.ResetColor();
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.DarkRed;
-                Console.WriteLine($"[-] Bağlantı Hatası: {ex.Message}");
-                Console.ResetColor();
-            }
-        }
-    }
+void StopGracefully(PosixSignalContext context)
+{
+    context.Cancel = true;
+    stopping.Cancel();
 }
