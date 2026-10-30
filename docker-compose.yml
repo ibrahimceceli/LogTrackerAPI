@@ -1,0 +1,120 @@
+# LogTracker demo stack - no local SQL Server or .NET SDK needed.
+#
+#   cp .env.example .env                  # once; then set MSSQL_SA_PASSWORD
+#   docker compose up --build             # SQL Server + schema + API on http://localhost:8080
+#   docker compose --profile demo up      # the same plus the traffic simulator
+#   docker compose --profile demo down    # stop everything (add --volumes to delete the database)
+#
+# Start order: db (healthy) -> db-init (runs the SQL scripts once) -> api (healthy) -> simulator.
+
+name: logtracker
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    # SQL Server images are amd64 only; Apple Silicon Macs run them through emulation.
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Copy .env.example to .env and set MSSQL_SA_PASSWORD}
+      # sqlcmd reads the password from here, so it never appears on a command line.
+      SQLCMDPASSWORD: ${MSSQL_SA_PASSWORD}
+    ports:
+      # Host port 14333 so a local SQL Server on 1433 keeps working. Bound to 127.0.0.1
+      # so the database is not reachable from other machines on the network.
+      - "127.0.0.1:${DB_PORT:-14333}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q 'SELECT 1' -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # One-shot job: creates LogTrackerDB if needed and runs ./database/[0-9]*.sql in
+  # lexical order. The scripts are idempotent, so this is safe on every "up".
+  db-init:
+    # Reuses the SQL Server image only for its sqlcmd tool (no extra download).
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SQLCMDPASSWORD: ${MSSQL_SA_PASSWORD:?Copy .env.example to .env and set MSSQL_SA_PASSWORD}
+    volumes:
+      - ./database:/database:ro
+    entrypoint: ["/bin/bash", "-euo", "pipefail", "-c"]
+    # "$$" is how docker-compose.yml writes a literal "$" for the shell.
+    command:
+      - |
+        # -C trusts the container's self-signed certificate, -b stops on the first SQL error,
+        # -I turns QUOTED_IDENTIFIER on (needed e.g. for filtered indexes; sqlcmd defaults to off).
+        sqlcmd="/opt/mssql-tools18/bin/sqlcmd -S db -U sa -C -b -I"
+
+        echo "Creating database LogTrackerDB if it does not exist..."
+        $$sqlcmd -Q "IF DB_ID(N'LogTrackerDB') IS NULL CREATE DATABASE [LogTrackerDB];"
+
+        # LC_ALL=C sorts the file names byte by byte (strict lexical order).
+        export LC_ALL=C
+        shopt -s nullglob
+        scripts=(/database/[0-9]*.sql)
+        if [ $${#scripts[@]} -eq 0 ]; then
+          echo "No ./database/[0-9]*.sql scripts found - nothing to run." >&2
+          exit 1
+        fi
+
+        for script in "$${scripts[@]}"; do
+          echo "Running $${script#/database/}..."
+          $$sqlcmd -d LogTrackerDB -i "$$script"
+        done
+        echo "Database is ready."
+
+  api:
+    build:
+      context: .
+      target: api
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      ConnectionStrings__LogTrackerDb: "Server=db,1433;Database=LogTrackerDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      # Test endpoints (/api/test/*) give the simulator and the dashboard something to show.
+      LogTracker__EnableTestEndpoints: "true"
+      LogTracker__ApiKey: ${LOGTRACKER_API_KEY:-}
+      LogTracker__Telegram__Enabled: ${TELEGRAM_ENABLED:-false}
+      LogTracker__Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      LogTracker__Telegram__ChatId: ${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  simulator:
+    build:
+      context: .
+      target: simulator
+    # Only started with "docker compose --profile demo ...", so a plain "up" gives a quiet stack.
+    profiles: [demo]
+    # A terminal makes .NET print the colored request lines in "docker compose up/logs".
+    tty: true
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      SIMULATOR_BASE_URL: http://api:8080
+      SIMULATOR_CONCURRENCY: ${SIMULATOR_CONCURRENCY:-4}
+      SIMULATOR_MIN_DELAY_MS: ${SIMULATOR_MIN_DELAY_MS:-200}
+      SIMULATOR_MAX_DELAY_MS: ${SIMULATOR_MAX_DELAY_MS:-1500}
+      SIMULATOR_ERROR_PERCENT: ${SIMULATOR_ERROR_PERCENT:-10}
+      SIMULATOR_DURATION_SECONDS: ${SIMULATOR_DURATION_SECONDS:-}
+      SIMULATOR_SUMMARY_INTERVAL_SECONDS: ${SIMULATOR_SUMMARY_INTERVAL_SECONDS:-30}
+
+volumes:
+  mssql-data:

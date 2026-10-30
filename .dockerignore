@@ -1,0 +1,32 @@
+# Keep the Docker build context small and free of secrets.
+# The Dockerfile copies the whole repository, so everything not listed here is sent to the build.
+
+# Version control, IDE and agent folders
+.git
+.github
+.vs
+.vscode
+.idea
+.claude
+**/*.user
+**/*.suo
+
+# Build output (the image builds from source)
+**/bin
+**/obj
+**/TestResults
+**/node_modules
+artifacts
+
+# Local secrets and settings
+.env
+.env.*
+**/*.pfx
+**/secrets.json
+
+# Not needed to build the API or simulator images
+tests
+docs
+docker-compose*.yml
+Dockerfile
+.dockerignore
