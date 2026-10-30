@@ -126,6 +126,45 @@ public sealed class LogWriterServiceTests
     }
 
     [Fact]
+    public async Task Flushes_queued_entries_even_when_stopped_before_the_loop_started()
+    {
+        var options = TestOptions.Create();
+        var queue = new LogQueue(options);
+        for (var i = 0; i < 3; i++)
+        {
+            queue.TryEnqueue(CreateRequest(i));
+        }
+
+        // A cancelled start token is the deterministic version of a host that stops right after starting:
+        // BackgroundService then never runs ExecuteAsync at all.
+        var service = CreateService(queue, options);
+        await service.StartAsync(new CancellationToken(canceled: true));
+        await service.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, _writer.Requests.Count());
+    }
+
+    [Fact]
+    public async Task Flushes_queued_entries_when_stopped_immediately_after_starting()
+    {
+        // Repeated because the race between StartAsync and StopAsync only shows up some of the time.
+        for (var run = 0; run < 50; run++)
+        {
+            var writer = new FakeLogWriter();
+            var options = TestOptions.Create();
+            var queue = new LogQueue(options);
+            queue.TryEnqueue(CreateRequest(run));
+
+            var service = new LogWriterService(queue, writer, _notifier, new AlertThrottle(_time), options, _time,
+                NullLogger<LogWriterService>.Instance);
+            await service.StartAsync(TestContext.Current.CancellationToken);
+            await service.StopAsync(TestContext.Current.CancellationToken);
+
+            Assert.Single(writer.Requests);
+        }
+    }
+
+    [Fact]
     public void Queue_drops_and_counts_entries_when_full()
     {
         var queue = new LogQueue(TestOptions.Create(o => o.QueueCapacity = 2));

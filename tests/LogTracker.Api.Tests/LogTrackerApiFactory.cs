@@ -36,4 +36,10 @@ internal sealed class LogTrackerApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<ILogReportRepository>(Store);
         });
     }
+
+    /// <summary>
+    /// Stops the app. The background writer flushes its queue on shutdown, so afterwards <see cref="Store"/>
+    /// holds everything that will ever be written and "nothing was recorded" can be checked reliably.
+    /// </summary>
+    public ValueTask StopAndFlushAsync() => DisposeAsync();
 }

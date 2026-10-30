@@ -52,18 +52,34 @@ internal sealed class LogWriterService(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Normal shutdown; whatever is still queued is flushed below.
+            // Normal shutdown; StopAsync flushes whatever is still queued.
         }
-
-        await FlushAsync();
     }
 
-    private async Task FlushAsync()
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // Cancels the loop and waits until it has finished the batch it was writing.
+        await base.StopAsync(cancellationToken);
+
+        // The flush lives here, not at the end of ExecuteAsync: since .NET 10, ExecuteAsync is started with
+        // Task.Run(..., stoppingToken), so a host that stops right after starting never runs it at all.
+        if (ExecuteTask is { IsCompleted: false })
+        {
+            // The host stopped waiting while a batch was still being written. Reading the queue now
+            // would race with that loop, so the remaining entries are given up.
+            return;
+        }
+
+        await FlushAsync(cancellationToken);
+    }
+
+    private async Task FlushAsync(CancellationToken hostCancellation)
     {
         queue.Complete();
         using var timeout = new CancellationTokenSource(ShutdownFlushTimeout, timeProvider);
+        using var flushCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, hostCancellation);
 
-        while (!timeout.IsCancellationRequested)
+        while (!flushCancellation.IsCancellationRequested)
         {
             var batch = ReadBatch();
             if (batch.Count == 0)
@@ -71,7 +87,7 @@ internal sealed class LogWriterService(
                 break;
             }
 
-            await ProcessBatchAsync(batch, timeout.Token);
+            await ProcessBatchAsync(batch, flushCancellation.Token);
         }
 
         ReportDroppedEntries();

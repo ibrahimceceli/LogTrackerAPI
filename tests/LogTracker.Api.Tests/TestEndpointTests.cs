@@ -42,6 +42,8 @@ public sealed class TestEndpointTests
         var response = await factory.CreateClient().GetAsync("/api/test/errors/out-of-memory", Ct);
 
         await response.ReadProblemAsync(HttpStatusCode.BadRequest);
+        await factory.StopAndFlushAsync();
+        Assert.Equal(400, Assert.Single(factory.Store.Requests).StatusCode);
         Assert.Empty(factory.Store.Errors);
     }
 
@@ -68,6 +70,8 @@ public sealed class TestEndpointTests
         var response = await factory.CreateClient().GetAsync(path, Ct);
 
         await response.ReadProblemAsync(HttpStatusCode.NotFound);
+        await factory.StopAndFlushAsync();
+        Assert.Equal("(unmatched)", Assert.Single(factory.Store.Requests).Endpoint);
         Assert.Empty(factory.Store.Errors);
     }
 }

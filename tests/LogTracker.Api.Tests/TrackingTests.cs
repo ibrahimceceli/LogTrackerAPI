@@ -37,8 +37,7 @@ public sealed class TrackingTests
         await client.GetAsync("/index.html", Ct);
         await client.GetAsync("/api/products/1", Ct);
 
-        await WaitForAsync(() => factory.Store.Requests.Count >= 1);
-        await Task.Delay(200, Ct);
+        await factory.StopAndFlushAsync();
         Assert.Equal(["/api/products/1"], factory.Store.Requests.Select(entry => entry.Path));
     }
 
@@ -110,6 +109,10 @@ public sealed class TrackingTests
 
         await errorResponse.ReadProblemAsync(HttpStatusCode.InternalServerError);
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Requests took {stopwatch.Elapsed}.");
+
+        // Shutdown must not hang or throw either, even though the final flush fails too.
+        await factory.StopAndFlushAsync();
         Assert.Empty(factory.Store.Requests);
+        Assert.Empty(factory.Store.Errors);
     }
 }

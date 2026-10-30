@@ -78,6 +78,8 @@ public sealed class DemoEndpointTests : IAsyncLifetime
         var response = await _client.PostAsync("/api/orders", content, Ct);
 
         await response.ReadProblemAsync(HttpStatusCode.BadRequest);
+        await _factory.StopAndFlushAsync();
+        Assert.Equal(400, Assert.Single(_factory.Store.Requests).StatusCode);
         Assert.Empty(_factory.Store.Errors);
     }
 
