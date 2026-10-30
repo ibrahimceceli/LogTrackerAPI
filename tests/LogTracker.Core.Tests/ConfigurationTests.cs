@@ -41,6 +41,19 @@ public sealed class ConfigurationTests
     }
 
     [Theory]
+    [InlineData("short-key", false)]
+    [InlineData("exactly-16-chars", true)]
+    [InlineData("", true)]
+    public void Api_key_is_empty_or_long_enough(string apiKey, bool valid)
+    {
+        var options = TestOptions.Create(o => o.ApiKey = apiKey).Value;
+
+        var result = _validator.Validate(null, options);
+
+        Assert.Equal(valid, result.Succeeded);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(-5)]
     public void Retention_must_be_at_least_one_day(int days)

@@ -5,12 +5,27 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Do not advertise the web server in every response.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 builder.Services.AddLogTracker(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<ProductCatalog>();
 builder.Services.AddSingleton<OrderStore>();
 
 var app = builder.Build();
+
+// Hardening headers for every response, including the dashboard files.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers.XContentTypeOptions = "nosniff";
+    headers.XFrameOptions = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    // Only frame-ancestors: the dashboard sets its script policy in index.html, and Scalar needs its own scripts.
+    headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+    await next(context);
+});
 
 // The dashboard in wwwroot is served before tracking starts, so its files are never logged.
 app.UseDefaultFiles();

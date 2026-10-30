@@ -319,7 +319,7 @@ yerine `__` (çift alt çizgi) kullanılır.
 | Ayar | Varsayılan | Ortam değişkeni | Anlamı |
 | --- | --- | --- | --- |
 | `ConnectionStrings:LogTrackerDb` | (zorunlu) | `ConnectionStrings__LogTrackerDb` | SQL Server connection string'i |
-| `LogTracker:ApiKey` | boş | `LogTracker__ApiKey` | Doluysa rapor istekleri `X-Api-Key: <değer>` göndermelidir; boş = herkese açık |
+| `LogTracker:ApiKey` | boş | `LogTracker__ApiKey` | Doluysa (en az 16 karakter) rapor istekleri `X-Api-Key: <değer>` göndermelidir; boş = herkese açık |
 | `LogTracker:RetentionDays` | `30` | `LogTracker__RetentionDays` | Bundan eski kayıtlar açılışta ve sonra günde bir silinir |
 | `LogTracker:ExcludedPathPrefixes` | aşağıya bakın | `LogTracker__ExcludedPathPrefixes__0`, `__1`, ... | Takip edilmeyecek ek path önekleri (varsayılanlara eklenir; `/` ile başlamalı) |
 | `LogTracker:QueueCapacity` | `10000` | `LogTracker__QueueCapacity` | Yazılmayı bekleyebilecek kayıt sayısı; kuyruk doluysa yeni kayıtlar atılır |
@@ -590,6 +590,9 @@ tetiklendiğinde üç job çalıştırır:
   token'ı istek URL'sinin bir parçası olduğu için Telegram HTTP client'ının istek logları kapatılmıştır.
 - **XSS'e karşı güvenli panel.** API'den gelen her değer `textContent` ile basılır ve sıkı bir Content
   Security Policy inline script'leri engeller. Telegram mesajları da HTML-escape edilir.
+- **Güvenlik başlıkları.** Demo API her yanıtta `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` ve `Content-Security-Policy: frame-ancestors 'none'` gönderir; `Server`
+  başlığını göndermez. 16 karakterden kısa bir API key uygulamanın açılmasını engeller.
 - **Docker varsayılanları**: portlar `127.0.0.1` adresine bağlanır, API ve simülatör container'ları
   yetkisiz `app` kullanıcısıyla çalışır. `.env.example` içindeki varsayılan `MSSQL_SA_PASSWORD` yalnızca
   yerel demolar içindir.

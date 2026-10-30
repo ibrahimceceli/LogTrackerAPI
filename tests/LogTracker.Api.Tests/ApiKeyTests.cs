@@ -4,7 +4,7 @@ namespace LogTracker.Api.Tests;
 
 public sealed class ApiKeyTests
 {
-    private const string Key = "test-key-123";
+    private const string Key = "test-key-0123456789";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

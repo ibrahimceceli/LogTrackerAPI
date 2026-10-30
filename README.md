@@ -312,7 +312,7 @@ All settings live in the `LogTracker` section, except the connection string. As 
 | Setting | Default | Environment variable | Meaning |
 | --- | --- | --- | --- |
 | `ConnectionStrings:LogTrackerDb` | (required) | `ConnectionStrings__LogTrackerDb` | SQL Server connection string |
-| `LogTracker:ApiKey` | empty | `LogTracker__ApiKey` | When set, report requests need `X-Api-Key: <value>`; empty = open |
+| `LogTracker:ApiKey` | empty | `LogTracker__ApiKey` | When set (at least 16 characters), report requests need `X-Api-Key: <value>`; empty = open |
 | `LogTracker:RetentionDays` | `30` | `LogTracker__RetentionDays` | Rows older than this are deleted at startup and then once a day |
 | `LogTracker:ExcludedPathPrefixes` | see below | `LogTracker__ExcludedPathPrefixes__0`, `__1`, ... | Extra path prefixes that are not tracked (added to the defaults; must start with `/`) |
 | `LogTracker:QueueCapacity` | `10000` | `LogTracker__QueueCapacity` | Entries that may wait for the writer; when full, new entries are dropped |
@@ -583,6 +583,9 @@ with three jobs:
   has its request logging removed, because the bot token is part of the request URL.
 - **XSS-safe dashboard.** Every value from the API is rendered with `textContent`, and a strict Content
   Security Policy blocks inline scripts. Telegram messages are HTML-escaped as well.
+- **Hardening headers.** The demo API sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Content-Security-Policy: frame-ancestors 'none'` on every response,
+  and does not send a `Server` header. An API key shorter than 16 characters stops the app at startup.
 - **Docker defaults**: ports are bound to `127.0.0.1`, and the API and simulator containers run as the
   unprivileged `app` user. The default `MSSQL_SA_PASSWORD` in `.env.example` is for local demos only.
 
