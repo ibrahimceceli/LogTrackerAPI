@@ -1,6 +1,72 @@
-@LogTrackerAPI_HostAddress = http://localhost:5269
+# Sample requests for the LogTracker demo API (Visual Studio / VS Code REST Client / Rider).
+# Set @apiKey when LogTracker:ApiKey is configured; leave it empty otherwise.
 
-GET {{LogTrackerAPI_HostAddress}}/weatherforecast/
+@baseUrl = http://localhost:5269
+@apiKey =
+
+### Health of the app and the log database
+GET {{baseUrl}}/health
+
+### Demo: all products
+GET {{baseUrl}}/api/products
 Accept: application/json
 
-###
+### Demo: one product (1-20; anything else returns 404)
+GET {{baseUrl}}/api/products/3
+Accept: application/json
+
+### Demo: place an order (201 with Location header)
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "productId": 3,
+  "quantity": 2
+}
+
+### Demo: invalid order (400 validation problem)
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "productId": 99,
+  "quantity": 0
+}
+
+### Demo: read an order created above
+GET {{baseUrl}}/api/orders/1
+Accept: application/json
+
+### Test: throw an exception (invalid-operation, null-reference, divide-by-zero, timeout, argument, key-not-found)
+GET {{baseUrl}}/api/test/errors/divide-by-zero
+
+### Test: slow request (clamped to 0-10000 ms)
+GET {{baseUrl}}/api/test/slow?ms=1500
+
+### Report: totals for the last 24 hours
+GET {{baseUrl}}/api/reports/summary?hours=24
+X-Api-Key: {{apiKey}}
+
+### Report: latest requests
+GET {{baseUrl}}/api/reports/requests?page=1&pageSize=20
+X-Api-Key: {{apiKey}}
+
+### Report: latest errors
+GET {{baseUrl}}/api/reports/errors?page=1&pageSize=20
+X-Api-Key: {{apiKey}}
+
+### Report: one error with stack trace
+GET {{baseUrl}}/api/reports/errors/1
+X-Api-Key: {{apiKey}}
+
+### Report: statistics per endpoint for the last 7 days
+GET {{baseUrl}}/api/reports/endpoints?hours=168
+X-Api-Key: {{apiKey}}
+
+### Report: errors per hour and type
+GET {{baseUrl}}/api/reports/hourly-errors?hours=24
+X-Api-Key: {{apiKey}}
+
+### Report: average duration per weekday (last 7 UTC days)
+GET {{baseUrl}}/api/reports/weekly-trend
+X-Api-Key: {{apiKey}}

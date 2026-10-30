@@ -1,8 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- XML comments on the endpoint handlers become summaries and descriptions in the OpenAPI document. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Only endpoint handlers need XML comments, not every public type. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <UserSecretsId>cadf2a08-4bec-400c-a50b-8848da9994f7</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.18.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogTracker.Core\LogTracker.Core.csproj" />
   </ItemGroup>
 
 </Project>
